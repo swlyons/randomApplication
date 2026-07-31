@@ -1,0 +1,316 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev, stg, prd]
+    paths-ignore:
+      - 'README.md'
+      - 'LICENSE'
+      - '.gitignore'
+
+env:
+  node_version: "22.x"
+  tf_version: "1.9.0" # must match value in iac/app/main.tf
+  FORCE_COLOR: 3
+
+concurrency: ${{ github.ref }}
+
+jobs:
+  env:
+    name: Set Env Vars
+    timeout-minutes: 1
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Set up DEV Environment Variables
+        if: github.ref == 'refs/heads/dev'
+        run: |
+          matrix='{
+            "env":[
+              {
+                "environment_name":"dev",
+                "ecr_repo_name":"hw-fargate-api-dev",
+                "aws_account":"977306314792",
+                "aws_gha_role":"hw-fargate-api-dev-gha",
+                "rfc_key_name":"standard_change_sandbox_client_key",
+                "rfc_secret_name":"standard_change_sandbox_client_secret",
+                "rfc_template_id":"Codepipeline-Standard-Change"
+              }
+            ]
+          }'
+          echo matrix=`echo $matrix | jq -c .` >> $GITHUB_ENV
+
+      - name: Set up STG Environment Variables
+        if: github.ref == 'refs/heads/stg'
+        run: |
+          matrix='{
+            "env":[
+              {
+                "environment_name":"stg",
+                "ecr_repo_name":"hw-fargate-api-stg",
+                "aws_account":"977306314792",
+                "aws_gha_role":"hw-fargate-api-stg-gha",
+                "rfc_key_name":"standard_change_sandbox_client_key",
+                "rfc_secret_name":"standard_change_sandbox_client_secret",
+                "rfc_template_id":"Codepipeline-Standard-Change"
+              }
+            ]
+          }'
+          echo matrix=`echo $matrix | jq -c .` >> $GITHUB_ENV
+
+      - name: Set up PRD/CPY Environment Variables
+        if: github.ref == 'refs/heads/prd'
+        # TODO: When prd really is production, in prd environment (first block below):
+        # * Change standard_change_sandbox_client_key to standard_change_production_client_key
+        # * Change standard_change_sandbox_client_secret to standard_change_production_client_secret
+        # You probably don't want to do this in cpy (second block), or you will get two RFCs everytime you push to prd
+        run: |
+          matrix='{
+            "env":[
+              {
+                "environment_name":"prd",
+                "ecr_repo_name":"hw-fargate-api-prd",
+                "aws_account":"539738229445",
+                "aws_gha_role":"hw-fargate-api-prd-gha",
+                "rfc_key_name":"standard_change_sandbox_client_key",
+                "rfc_secret_name":"standard_change_sandbox_client_secret",
+                "rfc_template_id":"Codepipeline-Standard-Change"
+              },
+              {
+                "environment_name":"cpy",
+                "ecr_repo_name":"hw-fargate-api-cpy",
+                "aws_account":"539738229445",
+                "aws_gha_role":"hw-fargate-api-cpy-gha",
+                "rfc_key_name":"standard_change_sandbox_client_key",
+                "rfc_secret_name":"standard_change_sandbox_client_secret",
+                "rfc_template_id":"Codepipeline-Standard-Change"
+              }
+            ]
+          }'
+          echo matrix=`echo $matrix | jq -c .` >> $GITHUB_ENV
+
+    outputs:
+      matrix: ${{ env.matrix }}
+
+  test:
+    name: Test
+    timeout-minutes: 3
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.node_version }}
+          cache: npm
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: npm ci
+        working-directory: src
+        run: npm ci --prefer-offline
+
+      - name: npm test
+        working-directory: src
+        run: npm run test:coverage
+
+      - name: Report test coverage to Codecov
+        uses: codecov/codecov-action@v7
+        if: env.CODECOV_TOKEN
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  audit:
+    name: Audit
+    timeout-minutes: 3
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.node_version }}
+
+      # We don't need to install deps to audit them
+
+      - name: npm audit
+        working-directory: src
+        run: npm audit --audit-level=critical
+
+  lint:
+    name: Lint
+    timeout-minutes: 3
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.node_version }}
+          cache: npm
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: npm ci
+        working-directory: src
+        run: npm ci --prefer-offline
+
+      - name: npm lint
+        working-directory: src
+        run: npm run lint
+
+  hadolint:
+    name: Lint Docker
+    timeout-minutes: 3
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # Hadolint follows semantic versioning, but doesn't have a @v2 release
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.3.0
+        with:
+          dockerfile: src/Dockerfile
+
+  format:
+    name: Tofu Format
+    timeout-minutes: 3
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Tofu Setup
+        uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: ${{ env.tf_version }}
+
+      - name: Tofu Format
+        working-directory: iac
+        run: tofu fmt -check -recursive
+
+  build_and_deploy:
+    name: Build and Deploy / ${{ matrix.env.environment_name }}
+    timeout-minutes: 90
+    runs-on: ubuntu-latest
+    needs: [env, test, audit, lint, hadolint, format]
+    strategy:
+      matrix: ${{ fromJson(needs.env.outputs.matrix) }}
+      fail-fast: false
+    environment:
+      name: ${{ matrix.env.environment_name }}
+      url: https://${{ steps.tofu-outputs.outputs.url }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: "arn:aws:iam::${{ matrix.env.aws_account }}:role/${{ matrix.env.aws_gha_role }}"
+          role-session-name: ${{ github.sha }}
+          aws-region: us-west-2
+
+      - name: Log into Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Get Current Timestamp
+        id: date
+        run: echo "timestamp=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_OUTPUT
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push the Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPO: ${{ matrix.env.ecr_repo_name }}
+          IMAGE_TAG: ${{ steps.date.outputs.timestamp }}
+        uses: docker/build-push-action@v7
+        with:
+          context: src
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO}}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Tofu Setup
+        uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: ${{ env.tf_version }}
+          tofu_wrapper: false
+
+      - name: Tofu Init
+        working-directory: iac/app
+        run: tofu init -var-file=${{ matrix.env.environment_name }}.tfvars
+
+      - name: Tofu Plan
+        working-directory: iac/app
+        run: tofu plan -var-file=${{ matrix.env.environment_name }}.tfvars -var 'image_tag=${{ steps.date.outputs.timestamp }}' -input=false -out=plan
+
+      - name: Analyze Tofu Plan
+        uses: byu-oit/github-action-tf-plan-analyzer@v2
+        if: github.repository_owner == 'byu-oit'
+        # If you're at BYU, but outside the byu-oit GitHub org, you may be able to obtain credentials by contacting cloudoffice@byu.edu
+        with:
+          working-directory: iac/app
+          terraform-plan-file: plan
+          divvycloud-username: ${{ secrets.DIVVYCLOUD_USERNAME }}
+          divvycloud-password: ${{ secrets.DIVVYCLOUD_PASSWORD }}
+
+      - name: Start Standard Change
+        uses: byu-oit/github-action-start-standard-change@v2
+        id: start-standard-change
+        with:
+          client-key: ${{ secrets[matrix.env.rfc_key_name] }}
+          client-secret: ${{ secrets[matrix.env.rfc_secret_name] }}
+          template-id: ${{ matrix.env.rfc_template_id }}
+          run-in-non-production: true
+
+      - name: Tofu Apply
+        working-directory: iac/app
+        run: tofu apply plan
+
+      - name: Get Tofu Outputs
+        id: tofu-outputs
+        working-directory: iac/app
+        run: |
+          echo "codedeploy_app_name=$(tofu output -var-file=${{ matrix.env.environment_name }}.tfvars -raw codedeploy_app_name)" >> $GITHUB_OUTPUT
+          echo "codedeploy_deployment_group_name=$(tofu output -var-file=${{ matrix.env.environment_name }}.tfvars -raw codedeploy_deployment_group_name)" >> $GITHUB_OUTPUT
+          echo "codedeploy_appspec_json_file=$(tofu output -var-file=${{ matrix.env.environment_name }}.tfvars -raw codedeploy_appspec_json_file)" >> $GITHUB_OUTPUT
+          echo "url=$(tofu output -var-file=${{ matrix.env.environment_name }}.tfvars -raw url)" >> $GITHUB_OUTPUT
+
+      - name: CodeDeploy
+        id: deploy
+        uses: byu-oit/github-action-codedeploy@v2
+        with:
+          application-name: ${{ steps.tofu-outputs.outputs.codedeploy_app_name }}
+          deployment-group-name: ${{ steps.tofu-outputs.outputs.codedeploy_deployment_group_name }}
+          appspec-file: ${{ steps.tofu-outputs.outputs.codedeploy_appspec_json_file }}
+
+      - name: End Standard Change
+        uses: byu-oit/github-action-end-standard-change@v2
+        if: always() && steps.start-standard-change.outcome == 'success' # Run if RFC started, even if the deploy failed
+        with:
+          client-key: ${{ secrets[matrix.env.rfc_key_name] }}
+          client-secret: ${{ secrets[matrix.env.rfc_secret_name] }}
+          change-sys-id: ${{ steps.start-standard-change.outputs.change-sys-id }}
+          run-in-non-production: true
+          work-start: ${{ steps.start-standard-change.outputs.work-start }}
+          success: ${{ job.status == 'success' }}
