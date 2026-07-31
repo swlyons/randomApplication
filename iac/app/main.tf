@@ -66,9 +66,9 @@ variable "log_retention_days" {
 }
 
 locals {
-  name    = "hw-fargate-api"
+  name    = "randomApplication"
   gh_org  = "byu-oit"
-  gh_repo = "hw-fargate-api"
+  gh_repo = "randomApplication"
 }
 
 data "aws_ecr_repository" "my_ecr_repo" {

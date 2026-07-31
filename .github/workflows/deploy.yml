@@ -31,9 +31,9 @@ jobs:
             "env":[
               {
                 "environment_name":"dev",
-                "ecr_repo_name":"hw-fargate-api-dev",
-                "aws_account":"977306314792",
-                "aws_gha_role":"hw-fargate-api-dev-gha",
+                "ecr_repo_name":"randomApplication-dev",
+                "aws_account":"1234567890",
+                "aws_gha_role":"randomApplication-dev-gha",
                 "rfc_key_name":"standard_change_sandbox_client_key",
                 "rfc_secret_name":"standard_change_sandbox_client_secret",
                 "rfc_template_id":"Codepipeline-Standard-Change"
@@ -49,9 +49,9 @@ jobs:
             "env":[
               {
                 "environment_name":"stg",
-                "ecr_repo_name":"hw-fargate-api-stg",
-                "aws_account":"977306314792",
-                "aws_gha_role":"hw-fargate-api-stg-gha",
+                "ecr_repo_name":"randomApplication-stg",
+                "aws_account":"1234567890",
+                "aws_gha_role":"randomApplication-stg-gha",
                 "rfc_key_name":"standard_change_sandbox_client_key",
                 "rfc_secret_name":"standard_change_sandbox_client_secret",
                 "rfc_template_id":"Codepipeline-Standard-Change"
@@ -71,18 +71,18 @@ jobs:
             "env":[
               {
                 "environment_name":"prd",
-                "ecr_repo_name":"hw-fargate-api-prd",
-                "aws_account":"539738229445",
-                "aws_gha_role":"hw-fargate-api-prd-gha",
+                "ecr_repo_name":"randomApplication-prd",
+                "aws_account":"9876543210",
+                "aws_gha_role":"randomApplication-prd-gha",
                 "rfc_key_name":"standard_change_sandbox_client_key",
                 "rfc_secret_name":"standard_change_sandbox_client_secret",
                 "rfc_template_id":"Codepipeline-Standard-Change"
               },
               {
                 "environment_name":"cpy",
-                "ecr_repo_name":"hw-fargate-api-cpy",
-                "aws_account":"539738229445",
-                "aws_gha_role":"hw-fargate-api-cpy-gha",
+                "ecr_repo_name":"randomApplication-cpy",
+                "aws_account":"9876543210",
+                "aws_gha_role":"randomApplication-cpy-gha",
                 "rfc_key_name":"standard_change_sandbox_client_key",
                 "rfc_secret_name":"standard_change_sandbox_client_secret",
                 "rfc_template_id":"Codepipeline-Standard-Change"

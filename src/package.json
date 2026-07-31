@@ -1,5 +1,5 @@
 {
-  "name": "hw-fargate-api",
+  "name": "randomApplication",
   "version": "1.0.0",
   "description": "Example of creating and deploying an API with Docker and Terraform on AWS",
   "author": "",
@@ -26,10 +26,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/byu-oit/hw-fargate-api.git"
+    "url": "git+https://github.com/byu-oit/randomApplication.git"
   },
   "bugs": {
-    "url": "https://github.com/byu-oit/hw-fargate-api/issues"
+    "url": "https://github.com/byu-oit/randomApplication/issues"
   },
-  "homepage": "https://github.com/byu-oit/hw-fargate-api#readme"
+  "homepage": "https://github.com/byu-oit/randomApplication#readme"
 }

@@ -26,8 +26,8 @@ jobs:
             "env":[
               {
                 "environment_name":"dev",
-                "aws_account":"977306314792",
-                "aws_gha_role":"hw-fargate-api-dev-gha"
+                "aws_account":"1234567890",
+                "aws_gha_role":"randomApplication-dev-gha"
               }
             ]
           }'
@@ -40,8 +40,8 @@ jobs:
             "env":[
               {
                 "environment_name":"stg",
-                "aws_account":"977306314792",
-                "aws_gha_role":"hw-fargate-api-stg-gha"
+                "aws_account":"1234567890",
+                "aws_gha_role":"randomApplication-stg-gha"
               }
             ]
           }'
@@ -54,13 +54,13 @@ jobs:
             "env":[
               {
                 "environment_name":"prd",
-                "aws_account":"539738229445",
-                "aws_gha_role":"hw-fargate-api-prd-gha"
+                "aws_account":"9876543210",
+                "aws_gha_role":"randomApplication-prd-gha"
               },
               {
                 "environment_name":"cpy",
-                "aws_account":"539738229445",
-                "aws_gha_role":"hw-fargate-api-cpy-gha"
+                "aws_account":"9876543210",
+                "aws_gha_role":"randomApplication-cpy-gha"
               }
             ]
           }'
